@@ -18,7 +18,7 @@ stock bool:IsValidClient(iClient)
     return (0 < iClient && iClient <= MaxClients && IsClientInGame(iClient));
 }
 
-static Float:s_flLastCongaTime[TF_MAX_PLAYERS] = {-16.0,...}; // Should be set to a value less than -CONGA_DELAY
+static Float:s_flLastCongaTime[TF_MAX_PLAYERS];
 
 public Plugin:myinfo = 
 {
@@ -28,6 +28,11 @@ public Plugin:myinfo =
     version = PLUGIN_VERSION,
     url = "http://steamcommunity.com/groups/tf2data"
 };
+
+public OnClientPostAdminCheck(iClient)
+{
+    s_flLastCongaTime[iClient] = -16.0; // Should be set to a value less than -CONGA_DELAY so they can conga at least once
+}
 
 public TF2_OnConditionAdded(iClient, TFCond:iCond)
 {
