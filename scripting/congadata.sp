@@ -9,16 +9,15 @@
 #include <sourcemod>
 #include <tf2_stocks>
 
-#define PLUGIN_VERSION "0x02"
+#define PLUGIN_VERSION "0x03"
 
 #define TF_MAX_PLAYERS          34             //  Sourcemod supports up to 64 players? Too bad TF2 doesn't. 33 player server +1 for 0 (console/world)
+#define FCVAR_VERSION           FCVAR_NOTIFY|FCVAR_DONTRECORD|FCVAR_CHEAT
 
-stock bool:IsValidClient(iClient)
+enum e_flNext2
 {
-    return (0 < iClient && iClient <= MaxClients && IsClientInGame(iClient));
+    e_flCongaUnblockTime = 0,
 }
-
-static Float:s_flLastCongaTime[TF_MAX_PLAYERS];
 
 public Plugin:myinfo = 
 {
@@ -29,23 +28,45 @@ public Plugin:myinfo =
     url = "http://steamcommunity.com/groups/tf2data"
 };
 
-public OnClientPostAdminCheck(iClient)
+static Handle:s_cvCongaMaxTime;
+static Handle:s_cvCongaUnblockTime;
+
+public OnPluginStart()
 {
-    s_flLastCongaTime[iClient] = -16.0; // Should be set to a value less than -CONGA_DELAY so they can conga at least once
+    CreateConVar(
+        "cv_conga_version", PLUGIN_VERSION,
+        "Conga Time Limit Version",
+        FCVAR_VERSION
+    );
+
+    s_cvCongaMaxTime = CreateConVar(
+        "cv_conga_limit", "5.0",
+        "After this many seconds, conga will be forcibly stopped.",
+        FCVAR_NOTIFY,
+        true, 0.0
+    );
+
+    s_cvCongaUnblockTime = CreateConVar(
+        "cv_conga_unblock", "15.0",
+        "After initiating conga, cannot conga again for this many seconds.",
+        FCVAR_NOTIFY,
+        true, 0.0
+    );
+
+    AutoExecConfig(true, "ch.conga");
 }
 
 public TF2_OnConditionAdded(iClient, TFCond:iCond)
 {
     if (iCond == TFCond_Taunting && GetEntProp(iClient, Prop_Send, "m_iTauntItemDefIndex") == 1118)
     {
-        if (GetGameTime() - s_flLastCongaTime[iClient] > 15.0) // ... > 15.0 or >= 15.0 ???
+        if (IfDoNextTime2(iClient, e_flCongaUnblockTime, GetConVarFloat(s_cvCongaUnblockTime)))
         {
-            CreateTimer(5.0, Timer_EndConga, GetClientUserId(iClient), TIMER_FLAG_NO_MAPCHANGE);
-            s_flLastCongaTime[iClient] = GetGameTime();
+            CreateTimer(GetConVarFloat(s_cvCongaMaxTime), Timer_EndConga, GetClientUserId(iClient), TIMER_FLAG_NO_MAPCHANGE);
         }
         else
         {
-            PrintToChat(iClient, "Please wait %0.1f seconds before you conga again.", 15.0 - (GetGameTime() - s_flLastCongaTime[iClient]));
+            PrintToChat(iClient, "Please wait %0.1f seconds before you conga again.", GetTimeTilNextTime2(iClient, e_flCongaUnblockTime));
             TF2_RemoveCondition(iClient, TFCond_Taunting);
         }
     }
@@ -54,7 +75,7 @@ public TF2_OnConditionAdded(iClient, TFCond:iCond)
 public Action:Timer_EndConga(Handle:hTimer, any:UserId)
 {
     new iClient = GetClientOfUserId(UserId);
-    if (IsValidClient(iClient) && GetEntProp(iClient, Prop_Send, "m_iTauntItemDefIndex") == 1118)
+    if (iClient && IsClientInGame(iClient) && GetEntProp(iClient, Prop_Send, "m_iTauntItemDefIndex") == 1118)
     {
         TF2_RemoveCondition(iClient, TFCond_Taunting);
     }
@@ -68,34 +89,51 @@ public Action:Timer_EndConga(Handle:hTimer, any:UserId)
     return GetEntProp(iClient, Prop_Send, "m_iTauntItemDefIndex") == 1118; // TF2_IsPlayerInCondition(iClient, TFCond_Taunting) && 
 }*/
 
-#endinput
+stock Float:fmax(Float:a,Float:b) { return (a > b) ? a : b; }
 
-//  Whenever I'm not lazy and this isn't bugging out for me I'll go throw this stuff in
+// Start of plural NextTime versions
 
-static Handle:g_cvCongaMaxTime;
-static Handle:g_cvCongaReTime;
+static Float:g_flNext2[e_flNext2][TF_MAX_PLAYERS];
 
-public OnPluginStart()
+stock bool:IsNextTime2(iClient, iIndex, Float:flAdditional = 0.0)
 {
-    CreateConVar(
-        "cv_conga_version", PLUGIN_VERSION,
-        "Conga Time Limit Version",
-        FCVAR_REPLICATED|FCVAR_PLUGIN|FCVAR_SPONLY|FCVAR_DONTRECORD|FCVAR_NOTIFY
-    );
+    return (GetEngineTime() >= g_flNext2[iIndex][iClient]+flAdditional);
+}
 
-    g_cvCongaMaxTime = CreateConVar(
-        "cv_conga_limit", "5.0",
-        "After this many seconds, conga will be forcibly stopped.",
-        FCVAR_PLUGIN|FCVAR_NOTIFY,
-        true, 0.0
-    );
+stock SetNextTime2(iClient, iIndex, Float:flTime, bool:bAbsolute = false)
+{
+    g_flNext2[iIndex][iClient] = bAbsolute ? flTime : GetEngineTime() + flTime;
+}
 
-    g_cvCongaReTime = CreateConVar(
-        "cv_conga_reallow", "15.0",
-        "After initiating conga, cannot conga again for this many seconds.",
-        FCVAR_PLUGIN|FCVAR_NOTIFY,
-        true, 0.0
-    );
+stock Float:GetNextTime2(iClient, iIndex)
+{
+    return g_flNext2[iIndex][iClient];
+}
 
-    AutoExecConfig(true, "ch.conga");
+stock ModNextTime2(iClient, iIndex, Float:flDisplacement)
+{
+    g_flNext2[iIndex][iClient] += flDisplacement;
+}
+
+stock Float:GetTimeTilNextTime2(iClient, iIndex, bool:bNonNegative = true)
+{
+    return bNonNegative ? fmax(g_flNext2[iIndex][iClient] - GetEngineTime(), 0.0) : (g_flNext2[iIndex][iClient] - GetEngineTime());
+}
+
+stock GetSecsTilNextTime2(iClient, iIndex, bool:bNonNegative = true)
+{
+    return RoundToFloor(GetTimeTilNextTime2(iClient, iIndex, bNonNegative));
+}
+
+/*
+    If next time occurs, we also add time on for when it is next allowed.
+*/
+stock bool:IfDoNextTime2(iClient, iIndex, Float:flThenAdd)
+{
+    if (IsNextTime2(iClient, iIndex))
+    {
+        SetNextTime2(iClient, iIndex, flThenAdd);
+        return true;
+    }
+    return false;
 }
