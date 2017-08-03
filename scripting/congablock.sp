@@ -9,7 +9,6 @@
 #include <sourcemod>
 #include <tf2_stocks>
 
-#define PLUGIN_VERSION "0x03"
 
 #define TF_MAX_PLAYERS          34             //  Sourcemod supports up to 64 players? Too bad TF2 doesn't. 33 player server +1 for 0 (console/world)
 #define FCVAR_VERSION           FCVAR_NOTIFY|FCVAR_DONTRECORD|FCVAR_CHEAT
@@ -58,16 +57,25 @@ public OnPluginStart()
 
 public TF2_OnConditionAdded(iClient, TFCond:iCond)
 {
-    if (iCond == TFCond_Taunting && GetEntProp(iClient, Prop_Send, "m_iTauntItemDefIndex") == 1118)
+    switch (iCond)
     {
-        if (IfDoNextTime2(iClient, e_flCongaUnblockTime, GetConVarFloat(s_cvCongaUnblockTime)))
+        case TFCond_Taunting:
         {
-            CreateTimer(GetConVarFloat(s_cvCongaMaxTime), Timer_EndConga, GetClientUserId(iClient), TIMER_FLAG_NO_MAPCHANGE);
-        }
-        else
-        {
-            PrintToChat(iClient, "Please wait %0.1f seconds before you conga again.", GetTimeTilNextTime2(iClient, e_flCongaUnblockTime));
-            TF2_RemoveCondition(iClient, TFCond_Taunting);
+            switch (GetEntProp(iClient, Prop_Send, "m_iTauntItemDefIndex"))
+            {
+                case 1118, 1157, 1162: // Conga, Kazotsky Kick, Mannrobics
+                {
+                    if (DoNextTime2(iClient, e_flCongaUnblockTime, GetConVarFloat(s_cvCongaUnblockTime)))
+                    {
+                        CreateTimer(GetConVarFloat(s_cvCongaMaxTime), Timer_EndConga, GetClientUserId(iClient), TIMER_FLAG_NO_MAPCHANGE);
+                    }
+                    else
+                    {
+                        PrintToChat(iClient, "Please wait %0.1f seconds before you taunt again.", GetTimeTilNextTime2(iClient, e_flCongaUnblockTime));
+                        TF2_RemoveCondition(iClient, TFCond_Taunting);
+                    }
+                }
+            }
         }
     }
 }
@@ -75,9 +83,15 @@ public TF2_OnConditionAdded(iClient, TFCond:iCond)
 public Action:Timer_EndConga(Handle:hTimer, any:UserId)
 {
     new iClient = GetClientOfUserId(UserId);
-    if (iClient && IsClientInGame(iClient) && GetEntProp(iClient, Prop_Send, "m_iTauntItemDefIndex") == 1118)
+    if (iClient && IsClientInGame(iClient) && IsPlayerAlive(iClient))
     {
-        TF2_RemoveCondition(iClient, TFCond_Taunting);
+        switch (GetEntProp(iClient, Prop_Send, "m_iTauntItemDefIndex"))
+        {
+            case 1118, 1157, 1162: // Conga, Kazotsky Kick, Mannrobics
+            {
+                TF2_RemoveCondition(iClient, TFCond_Taunting);
+            }
+        }
     }
 }
 
@@ -128,7 +142,7 @@ stock GetSecsTilNextTime2(iClient, iIndex, bool:bNonNegative = true)
 /*
     If next time occurs, we also add time on for when it is next allowed.
 */
-stock bool:IfDoNextTime2(iClient, iIndex, Float:flThenAdd)
+stock bool:DoNextTime2(iClient, iIndex, Float:flThenAdd)
 {
     if (IsNextTime2(iClient, iIndex))
     {
