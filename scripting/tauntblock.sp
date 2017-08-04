@@ -9,7 +9,7 @@
 #include <sourcemod>
 #include <tf2_stocks>
 
-#define PLUGIN_VERSION "0x05"
+#define PLUGIN_VERSION "0x06"
 
 #define TF_MAX_PLAYERS          34             //  Sourcemod supports up to 64 players? Too bad TF2 doesn't. 33 player server +1 for 0 (console/world)
 #define FCVAR_VERSION           FCVAR_NOTIFY|FCVAR_DONTRECORD|FCVAR_CHEAT
@@ -28,8 +28,8 @@ public Plugin:myinfo =
     url = "http://steamcommunity.com/groups/tf2data"
 };
 
-static Handle:s_cvCongaMaxTime;
-static Handle:s_cvCongaUnblockTime;
+static Handle:g_cvCongaMaxTime;
+static Handle:g_cvCongaUnblockTime;
 
 public OnPluginStart()
 {
@@ -39,14 +39,14 @@ public OnPluginStart()
         FCVAR_VERSION
     );
 
-    s_cvCongaMaxTime = CreateConVar(
+    g_cvCongaMaxTime = CreateConVar(
         "cv_taunt_timelimit", "5.0",
         "After this many seconds, special taunt will be forcibly stopped.",
         FCVAR_NOTIFY,
         true, 0.0
     );
 
-    s_cvCongaUnblockTime = CreateConVar(
+    g_cvCongaUnblockTime = CreateConVar(
         "cv_taunt_blocktime", "15.0",
         "After initiating special taunt, cannot special taunt again for this many seconds.",
         FCVAR_NOTIFY,
@@ -54,6 +54,8 @@ public OnPluginStart()
     );
 
     AutoExecConfig(true, "tauntlimiter");
+
+    AddCommandListener(Command_Taunt, "taunt"); // +taunt and taunt_by_name both turn out as just "taunt" to the server.
 }
 
 public TF2_OnConditionAdded(iClient, TFCond:iCond)
@@ -70,14 +72,9 @@ public TF2_OnConditionAdded(iClient, TFCond:iCond)
                 }
                 default: // This'll capture pretty much everything: Conga, Kazotsky Kick, Mannrobics, Box-Trot, Victory Lap, Dosido, High Five, etc...
                 {
-                    if (DoNextTime2(iClient, e_flTauntUnblockTime, GetConVarFloat(s_cvCongaUnblockTime)))
+                    if (DoNextTime2(iClient, e_flTauntUnblockTime, GetConVarFloat(g_cvCongaUnblockTime)))
                     {
-                        CreateTimer(GetConVarFloat(s_cvCongaMaxTime), Timer_EndTaunt, GetClientUserId(iClient), TIMER_FLAG_NO_MAPCHANGE);
-                    }
-                    else
-                    {
-                        PrintToChat(iClient, "Please wait %0.1f seconds before you taunt again.", GetTimeTilNextTime2(iClient, e_flTauntUnblockTime));
-                        TF2_RemoveCondition(iClient, TFCond_Taunting);
+                        CreateTimer(GetConVarFloat(g_cvCongaMaxTime), Timer_EndTaunt, GetClientUserId(iClient), TIMER_FLAG_NO_MAPCHANGE);
                     }
                 }
             }
@@ -102,6 +99,24 @@ public Action:Timer_EndTaunt(Handle:hTimer, any:UserId)
             }
         }
     }
+}
+
+public Action:Command_Taunt(iClient, const String:szCommand[], iArgs)
+{
+    if (iArgs > 0) // If iArgs are 0, then just "taunt" was used to activate the taunt.
+    {
+        decl String:szIndex[2];
+        GetCmdArgString(szIndex, sizeof(szIndex));
+        if (szIndex[0] != '0') // "taunt 0" is a normal taunt, whereas "taunt 1" or "taunt 8" corresponds to the taunt menu from +taunt
+        {
+            if (!IsNextTime2(iClient, e_flTauntUnblockTime))
+            {
+                PrintToChat(iClient, "Please wait %0.1f seconds before you taunt again.", GetTimeTilNextTime2(iClient, e_flTauntUnblockTime));
+                return Plugin_Handled;
+            }
+        }
+    }
+    return Plugin_Continue;
 }
 
 /*
