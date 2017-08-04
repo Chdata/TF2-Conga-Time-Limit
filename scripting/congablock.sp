@@ -1,5 +1,5 @@
 /*
-    Conga Time limiter.
+    Taunt Time limiter.
     By: Chdata
 
     Thanks to rswallen & friagram.
@@ -9,20 +9,21 @@
 #include <sourcemod>
 #include <tf2_stocks>
 
+#define PLUGIN_VERSION "0x04"
 
 #define TF_MAX_PLAYERS          34             //  Sourcemod supports up to 64 players? Too bad TF2 doesn't. 33 player server +1 for 0 (console/world)
 #define FCVAR_VERSION           FCVAR_NOTIFY|FCVAR_DONTRECORD|FCVAR_CHEAT
 
 enum e_flNext2
 {
-    e_flCongaUnblockTime = 0,
+    e_flTauntUnblockTime = 0,
 }
 
 public Plugin:myinfo = 
 {
-    name = "Conga Timer Limiter",
+    name = "Taunt Timer Limiter",
     author = "Chdata",
-    description = "Adds time limit to Conga",
+    description = "Adds time limit to special taunts",
     version = PLUGIN_VERSION,
     url = "http://steamcommunity.com/groups/tf2data"
 };
@@ -34,20 +35,20 @@ public OnPluginStart()
 {
     CreateConVar(
         "cv_conga_version", PLUGIN_VERSION,
-        "Conga Time Limit Version",
+        "Taunt Time Limit Version",
         FCVAR_VERSION
     );
 
     s_cvCongaMaxTime = CreateConVar(
         "cv_conga_limit", "5.0",
-        "After this many seconds, conga will be forcibly stopped.",
+        "After this many seconds, special taunt will be forcibly stopped.",
         FCVAR_NOTIFY,
         true, 0.0
     );
 
     s_cvCongaUnblockTime = CreateConVar(
         "cv_conga_unblock", "15.0",
-        "After initiating conga, cannot conga again for this many seconds.",
+        "After initiating special taunt, cannot special taunt again for this many seconds.",
         FCVAR_NOTIFY,
         true, 0.0
     );
@@ -63,15 +64,19 @@ public TF2_OnConditionAdded(iClient, TFCond:iCond)
         {
             switch (GetEntProp(iClient, Prop_Send, "m_iTauntItemDefIndex"))
             {
-                case 1118, 1157, 1162: // Conga, Kazotsky Kick, Mannrobics
+                case -1:
                 {
-                    if (DoNextTime2(iClient, e_flCongaUnblockTime, GetConVarFloat(s_cvCongaUnblockTime)))
+                    // Do nothing
+                }
+                default: // This'll capture pretty much everything: Conga, Kazotsky Kick, Mannrobics, Box-Trot, Victory Lap, Dosido, High Five, etc...
+                {
+                    if (DoNextTime2(iClient, e_flTauntUnblockTime, GetConVarFloat(s_cvCongaUnblockTime)))
                     {
-                        CreateTimer(GetConVarFloat(s_cvCongaMaxTime), Timer_EndConga, GetClientUserId(iClient), TIMER_FLAG_NO_MAPCHANGE);
+                        CreateTimer(GetConVarFloat(s_cvCongaMaxTime), Timer_EndTaunt, GetClientUserId(iClient), TIMER_FLAG_NO_MAPCHANGE);
                     }
                     else
                     {
-                        PrintToChat(iClient, "Please wait %0.1f seconds before you taunt again.", GetTimeTilNextTime2(iClient, e_flCongaUnblockTime));
+                        PrintToChat(iClient, "Please wait %0.1f seconds before you taunt again.", GetTimeTilNextTime2(iClient, e_flTauntUnblockTime));
                         TF2_RemoveCondition(iClient, TFCond_Taunting);
                     }
                 }
@@ -80,20 +85,28 @@ public TF2_OnConditionAdded(iClient, TFCond:iCond)
     }
 }
 
-public Action:Timer_EndConga(Handle:hTimer, any:UserId)
+public Action:Timer_EndTaunt(Handle:hTimer, any:UserId)
 {
     new iClient = GetClientOfUserId(UserId);
     if (iClient && IsClientInGame(iClient) && IsPlayerAlive(iClient))
     {
         switch (GetEntProp(iClient, Prop_Send, "m_iTauntItemDefIndex"))
         {
-            case 1118, 1157, 1162: // Conga, Kazotsky Kick, Mannrobics
+            case -1:
+            {
+                // Do nothing
+            }
+            default:
             {
                 TF2_RemoveCondition(iClient, TFCond_Taunting);
             }
         }
     }
 }
+
+/*
+    Common stocks copy and pasted below.
+*/
 
 /*
     You don't need to check the taunt condition, it's set to -1 if you're not taunting anyway.
