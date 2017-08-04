@@ -34,7 +34,7 @@ static Handle:g_cvCongaUnblockTime;
 public OnPluginStart()
 {
     CreateConVar(
-        "cv_tauntlimiter_version", PLUGIN_VERSION,
+        "cv_conga_version", PLUGIN_VERSION, // Old convar name is kept for legacy purposes
         "Taunt Time Limit Version",
         FCVAR_VERSION
     );
