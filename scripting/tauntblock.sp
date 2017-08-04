@@ -9,7 +9,7 @@
 #include <sourcemod>
 #include <tf2_stocks>
 
-#define PLUGIN_VERSION "0x04"
+#define PLUGIN_VERSION "0x05"
 
 #define TF_MAX_PLAYERS          34             //  Sourcemod supports up to 64 players? Too bad TF2 doesn't. 33 player server +1 for 0 (console/world)
 #define FCVAR_VERSION           FCVAR_NOTIFY|FCVAR_DONTRECORD|FCVAR_CHEAT
@@ -34,26 +34,26 @@ static Handle:s_cvCongaUnblockTime;
 public OnPluginStart()
 {
     CreateConVar(
-        "cv_conga_version", PLUGIN_VERSION,
+        "cv_tauntlimiter_version", PLUGIN_VERSION,
         "Taunt Time Limit Version",
         FCVAR_VERSION
     );
 
     s_cvCongaMaxTime = CreateConVar(
-        "cv_conga_limit", "5.0",
+        "cv_taunt_timelimit", "5.0",
         "After this many seconds, special taunt will be forcibly stopped.",
         FCVAR_NOTIFY,
         true, 0.0
     );
 
     s_cvCongaUnblockTime = CreateConVar(
-        "cv_conga_unblock", "15.0",
+        "cv_taunt_blocktime", "15.0",
         "After initiating special taunt, cannot special taunt again for this many seconds.",
         FCVAR_NOTIFY,
         true, 0.0
     );
 
-    AutoExecConfig(true, "ch.conga");
+    AutoExecConfig(true, "tauntlimiter");
 }
 
 public TF2_OnConditionAdded(iClient, TFCond:iCond)
